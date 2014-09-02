@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+
+STDIN=$(cat)
+APP="$1"
+
+_env=$(dokku volume:env "$APP")
+
+if [[ $? -eq 0 ]]; then
+  echo "$STDIN $_env"
+else
+  echo "$STDIN"
+fi

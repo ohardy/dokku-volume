@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [[ ! -z "$DOKKU_DEV" ]]; then
+  ./commands volume:install
+else
+  dokku volume:install
+fi

@@ -1,0 +1,241 @@
+#!/bin/bash
+
+_path=".o_volume"
+version="1.0"
+
+APP=$2
+OLDHOME=$HOME
+HOME="$DOKKU_ROOT/$_path"
+
+uuid() {
+  cat /proc/sys/kernel/random/uuid
+}
+
+check_exists() {
+  if [[ ! -f "$HOME/volume_$APP" ]]; then
+    echo "No database configured with name : $APP"
+    exit 1
+  fi
+}
+
+check_app() {
+  if [[ -z "$APP" ]]; then
+    echo "You must specify an app name"
+    exit 1
+  fi
+}
+
+migrate() {
+  :
+}
+
+env_for() {
+  _env=""
+  if [[ -f "$HOME/volumes_$APP" ]]; then
+    IFS=$'\n'
+    file_content=$(cat "$HOME/volumes_$APP")
+
+    for LINE in $file_content; do
+    	_env="$_env -v $LINE"
+    done
+  fi
+
+  echo "$_env"
+}
+
+path_for() {
+  _app=$1
+  _path_to_search=$2
+  _path=""
+
+  if [[ -f "$HOME/volumes_$APP" ]]; then
+    IFS=$'\n'
+    file_content=$(cat "$HOME/volumes_$APP")
+
+    for LINE in $file_content; do
+      real_path=$(echo "$LINE" | cut -d : -f 1)
+      virtual_path=$(echo "$LINE" | cut -d : -f 2)
+
+      if [[ "$_path_to_search" = "$virtual_path" ]]; then
+        _path=$real_path
+        break
+      fi
+    done
+  fi
+
+  if [[ -n "$_path" ]]; then
+    echo "$_path"
+  fi
+}
+
+restart_app() {
+  _app=$1
+  if [[ -n "$_app" ]]&&[[ -d "$DOKKU_ROOT/$_app" ]]; then
+    echo "-----> Restarting application : $_app"
+    dokku release $_app
+    dokku deploy $_app
+  fi
+}
+
+case "$1" in
+  volume:add)
+    check_app
+
+    _container_path=$3
+    _uuid=$(uuid)
+
+    mkdir -p "$HOME/data/$_uuid"
+
+    echo $HOME/data/$_uuid:$_container_path >> "$HOME/volumes_$APP"
+
+    ;;
+  volume:remove)
+    check_app
+
+    _container_path=$3
+    _real_path=$(path_for $APP $_container_path)
+
+    if [[ -f "$HOME/volumes_$APP" ]]; then
+      if [[ -f "$HOME/_volumes_$APP" ]]; then
+        rm -f "$HOME/_volumes_$APP"
+      fi
+      IFS=$'\n'
+      file_content=$(cat "$HOME/volumes_$APP")
+
+      for LINE in $file_content; do
+        real_path=$(echo "$LINE" | cut -d : -f 1)
+        virtual_path=$(echo "$LINE" | cut -d : -f 2)
+
+        if [[ "$_container_path" != "$virtual_path" ]]; then
+          echo "$LINE" >> "$HOME/_volumes_$APP"
+        fi
+      done
+
+      rm -f "$HOME/volumes_$APP"
+      if [[ -f "$HOME/_volumes_$APP" ]]; then
+        mv "$HOME/_volumes_$APP" "$HOME/volumes_$APP"
+      fi
+
+      rm -rf "$_real_path"
+    fi
+
+    ;;
+  volume:list)
+    check_app
+
+    if [[ -f "$HOME/volumes_$APP" ]]; then
+      cat "$HOME/volumes_$APP"
+    fi
+    ;;
+
+  volume:pre_build)
+    :
+
+    ;;
+
+  volume:migrate)
+    migrate
+    ;;
+
+  volume:env)
+    env_for $APP
+    ;;
+
+  volume:path_for)
+    path_for $APP $3
+    ;;
+
+  volume:dump)
+    check_app
+
+    _container_path=$3
+    _uuid=$(uuid)
+    _filename="$HOME/dump_$_uuid"
+
+    _real_path=$(path_for $APP $_container_path)
+
+    if [[ -d $_real_path ]]; then
+      cd $_real_path
+      tar -zcf $_filename . >/dev/null 2>&1
+
+      cat $_filename
+    fi
+    rm -f $_filename
+    ;;
+
+  volume:restore)
+    check_app
+
+    _uuid=$(uuid)
+    _filename="$HOME/restore_$_uuid"
+
+    cat - > $_filename
+
+    _container_path=$3
+    _real_path=$(path_for $APP $_container_path)
+    _mimetype=$(file -b --mime-type $_filename)
+    _temp_folder=$(mktemp -d)
+
+    if [[ "$_mimetype" = "application/x-tar" ]]||[[ "$_mimetype" = "application/gzip" ]]; then
+      tar -tf $_filename >/dev/null
+
+      if [[ $? -eq 0 ]]; then
+        tar -xf $_filename --directory=$_temp_folder
+      else
+        tar -zxf $_filename --directory=$_temp_folder
+      fi
+    else
+      echo "Restore with file of type $_mimetype unsupported"
+    fi
+
+    if [[ -d $_real_path ]]&&[[ -d $_temp_folder ]]; then
+      rm -rf $_real_path
+      mv $_temp_folder $_real_path
+    else
+      rm -rf $_temp_folder
+    fi
+
+    ;;
+
+  volume:install)
+    if [[ -d "$HOME" ]]; then
+      migrate
+      echo "Volume data already exist in "$HOME", installation aborded "
+    fi
+
+    if [[ ! -d "$HOME" ]]; then
+      mkdir -p "$HOME/data"
+
+      echo "$version" > "$HOME/version"
+
+      chown -R dokku: "$HOME"
+    fi
+    ;;
+
+  volume:update)
+    if [[ $(id -un) = "dokku" ]]; then
+      dokku plugins-update
+    fi
+
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    if [[ -d "$DIR/.git" ]]; then
+      pushd "$DIR"
+      sudo git pull
+      dokku volume:migrate
+      popd
+    fi
+    ;;
+
+  help)
+    cat && cat<<EOF
+    volume:env         <app>                                         Get generated environment variables for <app>
+    volume:add         <app> <container_path>                        Mount a folder in <app> at <container_path>
+    volume:remove      <app> <container_path>                        Remove folder in <app> at <container_path>
+    volume:dump        <app> <container_path> > filename.tar.gz      Dump volume data to filename.tar.gz
+    volume:retore      <app> <container_path> < filename.tar.gz      Restore volume data from filename.tar.gz
+    volume:list        <app>                                         Give list of volumes for <app>
+    volume:update                                                    Update this plugin
+    volume:migrate                                                   Migrate
+EOF
+    ;;
+esac
