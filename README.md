@@ -18,7 +18,7 @@ $ dokku help
     volume:add         <app> <container_path>                        Mount a folder in <app> at <container_path>
     volume:remove      <app> <container_path>                        Remove folder in <app> at <container_path>
     volume:dump        <app> <container_path> > filename.tar.gz      Dump volume data to filename.tar.gz
-    volume:retore      <app> <container_path> < filename.tar.gz      Restore volume data from filename.tar.gz
+    volume:restore      <app> <container_path> < filename.tar.gz      Restore volume data from filename.tar.gz
     volume:list        <app>                                         Give list of volumes for <app>
     volume:update                                                    Update this plugin
     volume:migrate                                                   Migrate
