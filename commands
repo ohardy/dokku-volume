@@ -195,6 +195,7 @@ case "$1" in
       rm -rf $_temp_folder
     fi
 
+    chmod -R 777 $_real_path
     ;;
 
   volume:install)
