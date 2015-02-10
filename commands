@@ -210,14 +210,10 @@ case "$1" in
     ;;
 
   volume:update)
-    if [[ $(id -un) = "dokku" ]]; then
-      dokku plugins-update
-    fi
-
     DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     if [[ -d "$DIR/.git" ]]; then
       pushd "$DIR"
-      sudo git pull
+      git pull
       dokku volume:migrate
       popd
     fi
