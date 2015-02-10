@@ -200,10 +200,7 @@ case "$1" in
   volume:install)
     if [[ -d "$HOME" ]]; then
       migrate
-      echo "Volume data already exist in "$HOME", installation aborded "
-    fi
-
-    if [[ ! -d "$HOME" ]]; then
+    else
       mkdir -p "$HOME/data"
 
       echo "$version" > "$HOME/version"
