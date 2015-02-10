@@ -84,7 +84,7 @@ case "$1" in
     _container_path=$3
     _uuid=$(uuid)
 
-    mkdir -p "$HOME/data/$_uuid"
+    mkdir -m 777 -p "$HOME/data/$_uuid"
 
     echo $HOME/data/$_uuid:$_container_path >> "$HOME/volumes_$APP"
 
