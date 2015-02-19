@@ -4,10 +4,10 @@ set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
 STDIN=$(cat)
 APP="$1"; PHASE="$2"
 
+output=""
 _env=$(dokku volume:env "$APP")
-
 if [[ $? -eq 0 ]] && [[ "$PHASE" != "build" ]]; then
-  echo "$STDIN $_env"
-else
-  echo "$STDIN"
+  output="$output $_env"
 fi
+
+echo "$STDIN$output"
