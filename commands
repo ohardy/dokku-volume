@@ -212,12 +212,7 @@ case "$1" in
 
   volume:update)
     DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    if [[ -d "$DIR/.git" ]]; then
-      pushd "$DIR"
-      git pull
-      dokku volume:migrate
-      popd
-    fi
+    dokku volume:migrate
     ;;
 
   help)
