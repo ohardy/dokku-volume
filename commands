@@ -84,7 +84,7 @@ case "$1" in
     _container_path=$3
     _uuid=$(uuid)
 
-    mkdir -p "$HOME/data/$_uuid"
+    mkdir -m 777 -p "$HOME/data/$_uuid"
 
     echo $HOME/data/$_uuid:$_container_path >> "$HOME/volumes_$APP"
 
@@ -195,15 +195,13 @@ case "$1" in
       rm -rf $_temp_folder
     fi
 
+    chmod -R 777 $_real_path
     ;;
 
   volume:install)
     if [[ -d "$HOME" ]]; then
       migrate
-      echo "Volume data already exist in "$HOME", installation aborded "
-    fi
-
-    if [[ ! -d "$HOME" ]]; then
+    else
       mkdir -p "$HOME/data"
 
       echo "$version" > "$HOME/version"
@@ -213,17 +211,8 @@ case "$1" in
     ;;
 
   volume:update)
-    if [[ $(id -un) = "dokku" ]]; then
-      dokku plugins-update
-    fi
-
     DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    if [[ -d "$DIR/.git" ]]; then
-      pushd "$DIR"
-      sudo git pull
-      dokku volume:migrate
-      popd
-    fi
+    dokku volume:migrate
     ;;
 
   help)
