@@ -1,18 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
 
-_path=".o_volume"
 version="1.0"
 
 APP=$2
-OLDHOME=$HOME
-HOME="$DOKKU_ROOT/$_path"
 
 uuid() {
   cat /proc/sys/kernel/random/uuid
 }
 
 check_exists() {
-  if [[ ! -f "$HOME/volume_$APP" ]]; then
+  if [[ ! -f "$DOKKU_ROOT/.o_volume/volume_$APP" ]]; then
     echo "No database configured with name : $APP"
     exit 1
   fi
@@ -31,9 +29,9 @@ migrate() {
 
 env_for() {
   _env=""
-  if [[ -f "$HOME/volumes_$APP" ]]; then
+  if [[ -f "$DOKKU_ROOT/.o_volume/volumes_$APP" ]]; then
     IFS=$'\n'
-    file_content=$(cat "$HOME/volumes_$APP")
+    file_content=$(cat "$DOKKU_ROOT/.o_volume/volumes_$APP")
 
     for LINE in $file_content; do
     	_env="$_env -v $LINE"
@@ -48,9 +46,9 @@ path_for() {
   _path_to_search=$2
   _path=""
 
-  if [[ -f "$HOME/volumes_$APP" ]]; then
+  if [[ -f "$DOKKU_ROOT/.o_volume/volumes_$APP" ]]; then
     IFS=$'\n'
-    file_content=$(cat "$HOME/volumes_$APP")
+    file_content=$(cat "$DOKKU_ROOT/.o_volume/volumes_$APP")
 
     for LINE in $file_content; do
       real_path=$(echo "$LINE" | cut -d : -f 1)
@@ -84,9 +82,9 @@ case "$1" in
     _container_path=$3
     _uuid=$(uuid)
 
-    mkdir -m 777 -p "$HOME/data/$_uuid"
+    mkdir -m 777 -p "$DOKKU_ROOT/.o_volume/data/$_uuid"
 
-    echo $HOME/data/$_uuid:$_container_path >> "$HOME/volumes_$APP"
+    echo $DOKKU_ROOT/.o_volume/data/$_uuid:$_container_path >> "$DOKKU_ROOT/.o_volume/volumes_$APP"
 
     ;;
   volume:remove)
@@ -95,25 +93,25 @@ case "$1" in
     _container_path=$3
     _real_path=$(path_for $APP $_container_path)
 
-    if [[ -f "$HOME/volumes_$APP" ]]; then
-      if [[ -f "$HOME/_volumes_$APP" ]]; then
-        rm -f "$HOME/_volumes_$APP"
+    if [[ -f "$DOKKU_ROOT/.o_volume/volumes_$APP" ]]; then
+      if [[ -f "$DOKKU_ROOT/.o_volume/_volumes_$APP" ]]; then
+        rm -f "$DOKKU_ROOT/.o_volume/_volumes_$APP"
       fi
       IFS=$'\n'
-      file_content=$(cat "$HOME/volumes_$APP")
+      file_content=$(cat "$DOKKU_ROOT/.o_volume/volumes_$APP")
 
       for LINE in $file_content; do
         real_path=$(echo "$LINE" | cut -d : -f 1)
         virtual_path=$(echo "$LINE" | cut -d : -f 2)
 
         if [[ "$_container_path" != "$virtual_path" ]]; then
-          echo "$LINE" >> "$HOME/_volumes_$APP"
+          echo "$LINE" >> "$DOKKU_ROOT/.o_volume/_volumes_$APP"
         fi
       done
 
-      rm -f "$HOME/volumes_$APP"
-      if [[ -f "$HOME/_volumes_$APP" ]]; then
-        mv "$HOME/_volumes_$APP" "$HOME/volumes_$APP"
+      rm -f "$DOKKU_ROOT/.o_volume/volumes_$APP"
+      if [[ -f "$DOKKU_ROOT/.o_volume/_volumes_$APP" ]]; then
+        mv "$DOKKU_ROOT/.o_volume/_volumes_$APP" "$DOKKU_ROOT/.o_volume/volumes_$APP"
       fi
 
       rm -rf "$_real_path"
@@ -123,8 +121,8 @@ case "$1" in
   volume:list)
     check_app
 
-    if [[ -f "$HOME/volumes_$APP" ]]; then
-      cat "$HOME/volumes_$APP"
+    if [[ -f "$DOKKU_ROOT/.o_volume/volumes_$APP" ]]; then
+      cat "$DOKKU_ROOT/.o_volume/volumes_$APP"
     fi
     ;;
 
@@ -150,7 +148,7 @@ case "$1" in
 
     _container_path=$3
     _uuid=$(uuid)
-    _filename="$HOME/dump_$_uuid"
+    _filename="$DOKKU_ROOT/.o_volume/dump_$_uuid"
 
     _real_path=$(path_for $APP $_container_path)
 
@@ -167,7 +165,7 @@ case "$1" in
     check_app
 
     _uuid=$(uuid)
-    _filename="$HOME/restore_$_uuid"
+    _filename="$DOKKU_ROOT/.o_volume/restore_$_uuid"
 
     cat - > $_filename
 
@@ -176,7 +174,7 @@ case "$1" in
     _mimetype=$(file -b --mime-type $_filename)
     _temp_folder=$(mktemp -d)
 
-    if [[ "$_mimetype" = "application/x-tar" ]]||[[ "$_mimetype" = "application/gzip" ]]; then
+    if [[ "$_mimetype" = "application/x-tar" ]] || [[ "$_mimetype" = "application/gzip" ]]; then
       tar -tf $_filename >/dev/null
 
       if [[ $? -eq 0 ]]; then
@@ -188,7 +186,7 @@ case "$1" in
       echo "Restore with file of type $_mimetype unsupported"
     fi
 
-    if [[ -d $_real_path ]]&&[[ -d $_temp_folder ]]; then
+    if [[ -d $_real_path ]] && [[ -d $_temp_folder ]]; then
       rm -rf $_real_path
       mv $_temp_folder $_real_path
     else
@@ -199,35 +197,40 @@ case "$1" in
     ;;
 
   volume:install)
-    if [[ -d "$HOME" ]]; then
+    if [[ -d "$DOKKU_ROOT/.o_volume" ]]; then
       migrate
     else
-      mkdir -p "$HOME/data"
-
-      echo "$version" > "$HOME/version"
-
-      chown -R dokku: "$HOME"
+      mkdir -p "$DOKKU_ROOT/.o_volume/data"
+      echo "$version" > "$DOKKU_ROOT/.o_volume/version"
+      chown -R dokku: "$DOKKU_ROOT/.o_volume"
     fi
     ;;
 
   volume:update)
-    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     dokku volume:migrate
     ;;
 
-  help)
-    cat && cat<<EOF
-    volume:env         <app>                                         Get generated environment variables for <app>
-    volume:add         <app> <container_path>                        Mount a folder in <app> at <container_path>
-    volume:remove      <app> <container_path>                        Remove folder in <app> at <container_path>
-    volume:dump        <app> <container_path> > filename.tar.gz      Dump volume data to filename.tar.gz
-    volume:restore      <app> <container_path> < filename.tar.gz      Restore volume data from filename.tar.gz
-    volume:list        <app>                                         Give list of volumes for <app>
-    volume:update                                                    Update this plugin
-    volume:migrate                                                   Migrate
+  help | volume:help)
+    HELP=$(cat<<EOF
+    volume:env <app>, Get generated environment variables for <app>
+    volume:add <app> <container_path>, Mount a folder in <app> at <container_path>
+    volume:remove <app> <container_path>, Remove folder in <app> at <container_path>
+    volume:dump <app> <container_path> > filename.tar.gz, Dump volume data to filename.tar.gz
+    volume:restore <app> <container_path> < filename.tar.gz, Restore volume data from filename.tar.gz
+    volume:list <app>, Give list of volumes for <app>
+    volume:update, Update this plugin
+    volume:migrate, Migrate
 EOF
+)
+    if [[ -n $DOKKU_API_VERSION ]]; then
+      echo "$HELP"
+    else
+      cat && echo "$HELP"
+    fi
     ;;
+
   *)
-    exit $DOKKU_NOT_IMPLEMENTED_EXIT
+    exit "$DOKKU_NOT_IMPLEMENTED_EXIT"
     ;;
+
 esac
