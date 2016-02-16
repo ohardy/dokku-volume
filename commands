@@ -83,7 +83,9 @@ case "$1" in
     _uuid=$(uuid)
 
     mkdir -m 777 -p "$DOKKU_ROOT/.o_volume/data/$_uuid"
-
+    mkdir -m 777 -p "$DOKKU_ROOT/.o_volume/data/$_uuid/staticfiles"
+    setfacl -dm u::rwx,g::rwx,o::rwx "$DOKKU_ROOT/.o_volume/data/$_uuid/staticfiles"
+    
     echo $DOKKU_ROOT/.o_volume/data/$_uuid:$_container_path >> "$DOKKU_ROOT/.o_volume/volumes_$APP"
 
     ;;
