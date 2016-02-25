@@ -1,0 +1,4 @@
+[plugin]
+description = "persistent storage plugin for dokku"
+version = "1.0.0"
+[plugin.config]
