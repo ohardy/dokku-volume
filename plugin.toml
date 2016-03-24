@@ -1,0 +1,5 @@
+[plugin]
+description = "Volume (persistent storage) plugin for Dokku"
+version = "0.0.0"
+[plugin.config]
+
